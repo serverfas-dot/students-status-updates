@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Statistics</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',sans-serif}
+body,html{width:100vw;height:100vh;overflow:hidden;background:#0f172a}
+#root{width:100vw;height:100vh;overflow:hidden}
+.dashboard{width:100vw;height:100vh;display:flex;position:relative;background:linear-gradient(rgba(15,23,42,0.85),rgba(15,23,42,0.9)),url('F-Feeali-e1649901201166.jpg') center/cover fixed}
+.background-lines{position:absolute;width:100vw;height:100vh;pointer-events:none;z-index:1}
+.line{position:absolute;background:rgba(255,255,255,0.05)}
+.line-1{top:0;left:0;width:100vw;height:1px}.line-2{top:33.33vh;left:0;width:100vw;height:1px}
+.line-3{top:66.66vh;left:0;width:100vw;height:1px}.line-4{top:100vh;left:0;width:100vw;height:1px}
+.line-5{top:0;left:0;width:1px;height:100vh}.line-6{top:0;left:33.33vw;width:1px;height:100vh}
+.line-7{top:0;left:66.66vw;width:1px;height:100vh}.line-8{top:0;left:100vw;width:1px;height:100vh}
+.stats-container{width:100vw;height:100vh;display:flex;position:relative;z-index:2}
+.stat-box{flex:1;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;border-right:1px solid rgba(255,255,255,0.05);transition:all 0.3s}
+.stat-box:last-child{border-right:none}
+.stat-box:hover{background:rgba(255,255,255,0.02)}
+.stat-content{text-align:center;padding:2vw;width:100%}
+.stat-label{font-size:2vw;font-weight:400;color:#cbd5e1;letter-spacing:0.2vw;margin-bottom:3vh;text-transform:uppercase}
+.stat-number{font-size:10vw;font-weight:800;line-height:1;margin:2vh 0;text-shadow:0 1vw 2vw rgba(0,0,0,0.5)}
+.stat-subtitle{font-size:1.2vw;font-weight:300;color:#94a3b8;margin-top:3vh;letter-spacing:0.1vw}
+.counter-animation{animation:countUp 1.5s ease-out forwards;opacity:0}
+.total-box .stat-number{color:#a5b4fc}
+.boys-box  .stat-number{color:#93c5fd}
+.girls-box .stat-number{color:#f9a8d4}
+.total-box{background:linear-gradient(135deg,rgba(79,70,229,0.1),transparent)}
+.boys-box{background:linear-gradient(135deg,rgba(37,99,235,0.1),transparent)}
+.girls-box{background:linear-gradient(135deg,rgba(219,39,119,0.1),transparent)}
+
+.loading{width:100vw;height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;color:#cbd5e1;font-size:2vw;position:absolute;z-index:3;background:rgba(15,23,42,0.9)}
+.spinner{width:5vw;height:5vw;border:0.4vw solid rgba(255,255,255,0.1);border-top:0.4vw solid #4f46e5;border-radius:50%;margin-bottom:3vh;animation:spin 1s linear infinite}
+@keyframes countUp{0%{opacity:0;transform:translateY(5vh) scale(0.9)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.4)}}
+@media(max-width:768px){.stat-label{font-size:3vw}.stat-number{font-size:12vw}.stat-subtitle{font-size:2vw}}
+</style>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+// ── Firebase (studentstat-968de) ─────────────────────────────
+// custom_stats node: written by FAS Super Admin
+// students node: live student data
+const firebaseConfig = {
+    apiKey: "AIzaSyAivFl6J1jcclN80mzhfjwAYFwavGrIWk0",
+    authDomain: "studentstat-968de.firebaseapp.com",
+    databaseURL: "https://studentstat-968de-default-rtdb.firebaseio.com",
+    projectId: "studentstat-968de",
+    storageBucket: "studentstat-968de.firebasestorage.app",
+    messagingSenderId: "936024833343",
+    appId: "1:936024833343:web:e8c04fa58529c0dc87a78a",
+    measurementId: "G-YZHXP4Q9VW"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const FB_URL = "https://studentstat-968de-default-rtdb.firebaseio.com";
+const fbPUT = (path,data) => fetch(`${FB_URL}/${path}.json`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+
+// Background lines
+const BG = () => React.createElement("div",{className:"background-lines"},
+    [1,2,3,4,5,6,7,8].map(n=>React.createElement("div",{key:n,className:`line line-${n}`}))
+);
+
+// Animated counter
+const Counter = ({value}) => {
+    const [n,setN] = React.useState(0);
+    const prev = React.useRef(0);
+    React.useEffect(()=>{
+        if(value===prev.current) return;
+        const s=prev.current, e=value; prev.current=e;
+        let c=s; const inc=(e-s)/(1500/16);
+        const t=setInterval(()=>{
+            c+=inc;
+            if((inc>0&&c>=e)||(inc<0&&c<=e)){setN(e);clearInterval(t);}
+            else setN(Math.floor(c));
+        },16);
+        return()=>clearInterval(t);
+    },[value]);
+    return React.createElement("div",{className:"stat-number counter-animation"},n.toLocaleString());
+};
+
+const StatBox = ({label,value,subtitle,cls}) =>
+    React.createElement("div",{className:`stat-box ${cls}`},
+        React.createElement("div",{className:"stat-content"},
+            React.createElement("div",{className:"stat-label"},label),
+            React.createElement(Counter,{value}),
+            subtitle&&React.createElement("div",{className:"stat-subtitle"},subtitle)
+        )
+    );
+
+// Main App
+const App = () => {
+    const [live,   setLive]   = React.useState({total:0,boys:0,girls:0});
+    const [custom, setCustom] = React.useState(null);
+    const [loading,setLoading]= React.useState(true);
+
+    React.useEffect(()=>{
+        const ref=db.ref("students");
+        ref.on("value",snap=>{
+            const d=snap.val();
+            if(d){const all=Object.values(d);setLive({total:all.length,boys:all.filter(s=>s.gender==="Male").length,girls:all.filter(s=>s.gender==="Female").length});}
+            else setLive({total:0,boys:0,girls:0});
+            setLoading(false);
+        });
+        return()=>ref.off("value");
+    },[]);
+
+    React.useEffect(()=>{
+        const ref=db.ref("custom_stats");
+        ref.on("value",snap=>{
+            const d=snap.val();
+            setCustom(d&&d.active?{total:d.total||0,boys:d.boys||0,girls:d.girls||0}:null);
+        });
+        return()=>ref.off("value");
+    },[]);
+
+    const disp = custom!==null?custom:live;
+
+    if(loading) return React.createElement("div",{className:"loading"},
+        React.createElement(BG),
+        React.createElement("div",{className:"spinner"}),
+        React.createElement("div",null,"Loading Student Data\u2026")
+    );
+
+    return React.createElement("div",{className:"dashboard"},
+        React.createElement(BG),
+        React.createElement("div",{className:"stats-container"},
+            React.createElement(StatBox,{label:"Total Students",value:disp.total,subtitle:"Enrolled",cls:"total-box"}),
+            React.createElement(StatBox,{label:"Boys",value:disp.boys,subtitle:"Male Students",cls:"boys-box"}),
+            React.createElement(StatBox,{label:"Girls",value:disp.girls,subtitle:"Female Students",cls:"girls-box"})
+        ),
+
+    );
+};
+
+ReactDOM.render(React.createElement(App), document.getElementById("root"));
+</script>
+</body>
+</html>
